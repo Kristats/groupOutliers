@@ -237,8 +237,6 @@ weights.fun <- function(x.mat, x.imp, F.mat){
 # implementation of the extension of the cellHandler algorithm 
 cellHandlerExt <- function(X, mu, F.mat, P.out, V2.mat.proj, constrs, quant = 0.99){
   
-    # !!!! THE first go over badcells in uncommented and it seems to work better!!
-  
     # init
     eps.ols = 1e-2
     eps     = 1e-6
@@ -295,7 +293,7 @@ cellHandlerExt <- function(X, mu, F.mat, P.out, V2.mat.proj, constrs, quant = 0.
         if (length(badCells) > 0) {
             
             # corrupted cells indices
-            badinds <- larOut$ordering[seq_len(max(badCells))]
+            badinds <- larOut$ordering[seq_len(min(max(badCells),length(larOut$ordering)))]
 
             # impute corrupted data
             if(length(badinds) == d){
@@ -329,7 +327,7 @@ cellHandlerExt <- function(X, mu, F.mat, P.out, V2.mat.proj, constrs, quant = 0.
             }
             
             # check which really to replace after correcting for variance 
-            #badinds <- which(abs(sdres) > sqrt(qchisq(quant,1)))              # without this actually better !!
+            badinds <- which(abs(sdres) > sqrt(qchisq(quant,1)))              # without this actually better !!
             
             if (length(indNA) > 0) {
                 badinds <- unique(indNA, badinds)
@@ -615,6 +613,7 @@ cell.est <- function(x.mat, F.mat, maxCol = 0.25, quant = 0.99, conv.eps = 1e-5,
 
 
 
+
 library(reshape2)
 library(ggplot2)
 N = 30; p = 5
@@ -623,12 +622,18 @@ F.mat = diff.mat.fun(p,combn(1:p,2),rep(1,p*(p-1)/2))
 
 n.rep  = 200
 gamma  = 2
-quant = 0.99
-scores = lapply(1:n.rep,function(idx){
+gammas = c(1,2,3,4,5,6,7,8,9,10)
+
+# quant = 0.90 seems to be best ?!?!?? -> maybe plot for different quants.? or vary quant between 0-1???
+quant = 0.90
+all.scores = matrix(0, ncol = 8, nrow = length(gammas)) 
+iter = 1
+for(gamma in gammas){
+  scores = lapply(1:n.rep,function(idx){
 
       print(idx)
         
-      outl.gen   = outl.sample(p,N,0.2,gamma,F.mat)
+      outl.gen   = outl.sample(p,N,0.2, gamma, F.mat)
       x.corr.mat = outl.gen$x.corr.mat
       x.mat      = outl.gen$x.mat
       ind.corr   = outl.gen$ind.corr
@@ -649,14 +654,15 @@ scores = lapply(1:n.rep,function(idx){
       #x.corr.mat = x.corr.mat %*% V2.mat
       
       
-      res        = rescaling(x.corr.mat  %*% V2.mat, F.mat) # center x.mat and rescale columns of F.mat - doenst change kernel 
-      x.centers  = res$x.centers
-      x.mat.new  = res$x.mat.new
-      F.mat.new  = res$F.mat.new
-            
+      #res        = rescaling(x.corr.mat  %*% V2.mat, F.mat) # center x.mat and rescale columns of F.mat - doenst change kernel 
+      #x.centers  = res$x.centers
+      #x.mat.new  = res$x.mat.new
+      #F.mat.new  = res$F.mat.new
+      x.mat.new = x.corr.mat
+      F.mat.new = F.mat     
       
       x.imp = cellWise:::DDCWcov(as.matrix(x.mat.new %*% V2.mat))$Z
-      mu    = apply(x.imp, 2, function(u){median(u)})
+      mu    = apply(x.imp, 2, function(u){mean(u)})
 
       mod = cellHandlerExt(x.corr.mat, mu, F.mat.new, P.mat.fun(x.imp, mu, V.mat), V2.mat, V.mat.o, quant = quant)
 
@@ -721,8 +727,8 @@ scores = lapply(1:n.rep,function(idx){
 
       
       #mod = cell.est(x.corr.mat, F.mat.new, maxit = 20, quant = quant, maxCol = 0.25); mod$Ximp = mod$x.imp.orig
-      #mod2 = DI(x.corr.mat, quant = 0.99) # 
-      mod2 = cellWise::cellHandler(x.corr.mat, mu, cov(x.imp)+diag(rep(1e-2,p)) ) #
+      #mod2 = DI(x.corr.mat, quant = quant) # 
+      mod2 = cellWise::cellHandler(x.corr.mat, mu, cov(x.imp) + diag(rep(1e-2,p)) ) #
 
       ext.cellH.imp = as.matrix(mod$Ximp %*% V2.mat)
       cellH.imp     = as.matrix(mod2$Ximp %*% V2.mat)
@@ -745,11 +751,33 @@ colMeans(scores)[-c(7:8)]
 ggplot(data.frame(melt(scores[,-c(7:8)])),aes(x = Var2, y = value)) + geom_boxplot()
 ggplot(data.frame(melt(scores[,c(7:8)])),aes(x = Var2, y = value)) + geom_boxplot()
 
+all.scores[iter,] = colMeans(scores)
+iter = iter + 1
 
-# starting for cellhandler
-# DDCcov transformed  -> best
-# DDC on transformed - not so good
-# DI on transformed - > also not good!!
+
+}
+
+colnames(all.scores) = names(colMeans(scores))
+#saveRDS(all.scores, "all.scores.rds")
+all.scores = readRDS("all.scores.rds")
+
+
+ggplot(melt(all.scores[,1:6]), aes(x = Var1,y = value)) + geom_line() + facet_wrap(~Var2) + ylim(0,1)
+ggplot(melt(all.scores[,7:8]), aes(x = Var1,y = value)) + geom_line() + facet_wrap(~Var2)
+
+
+
+all.scores = readRDS("all.scores2.rds")
+ggplot(melt(all.scores[,1:6]), aes(x = Var1,y = value)) + geom_line() + facet_wrap(~Var2) + ylim(0,1)
+ggplot(melt(all.scores[,7:8]), aes(x = Var1,y = value)) + geom_line() + facet_wrap(~Var2)
+
+
+
+
+all.scores = readRDS("all.scores3.rds")
+ggplot(melt(all.scores[,1:6]), aes(x = Var1,y = value)) + geom_line() + facet_wrap(~Var2) + ylim(0,1)
+ggplot(melt(all.scores[,7:8]), aes(x = Var1,y = value)) + geom_line() + facet_wrap(~Var2)
+
 
 
 
