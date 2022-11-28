@@ -546,7 +546,7 @@ cell.est <- function(x.mat, F.mat, maxCol = 0.25, quant = 0.99, conv.eps = 1e-5,
               bias.loc = as.matrix(ginv(P.out$P.mat[inds,inds]))
               bias.loc = t(matrix(V.mat[inds,], nrow = p.imp)) %*% bias.loc %*%  matrix(V.mat[inds,], nrow = p.imp)
               bias.loc = V.mat %*% bias.loc %*% t(V.mat)
-              finalBias = finalBias +bias.loc
+              finalBias = finalBias + bias.loc
             }
         }
         
@@ -625,7 +625,7 @@ gamma  = 2
 gammas = c(1,2,3,4,5,6,7,8,9,10)
 
 # quant = 0.90 seems to be best ?!?!?? -> maybe plot for different quants.? or vary quant between 0-1???
-quant = 0.90
+quant = 0.99
 all.scores = matrix(0, ncol = 8, nrow = length(gammas)) 
 iter = 1
 for(gamma in gammas){
@@ -647,11 +647,12 @@ for(gamma in gammas){
       #x.imp   = cellWise::DDC(as.matrix(x.corr.mat %*% (V.mat) %*% t(V.mat)))$Ximp
       #x.corr = x.corr.mat %*% (V.mat) %*% t(V.mat)   #----> makes it even worse!!!!
       
-      
       constrs = V.mat.o
       
       x.corr.mat = x.corr.mat + rt(N,30) %*% t(constrs) 
       #x.corr.mat = x.corr.mat %*% V2.mat
+      
+
       
       
       #res        = rescaling(x.corr.mat  %*% V2.mat, F.mat) # center x.mat and rescale columns of F.mat - doenst change kernel 
@@ -664,7 +665,7 @@ for(gamma in gammas){
       x.imp = cellWise:::DDCWcov(as.matrix(x.mat.new %*% V2.mat))$Z
       mu    = apply(x.imp, 2, function(u){mean(u)})
 
-      mod = cellHandlerExt(x.corr.mat, mu, F.mat.new, P.mat.fun(x.imp, mu, V.mat), V2.mat, V.mat.o, quant = quant)
+      mod =  cellHandlerExt(x.corr.mat, mu, F.mat.new, P.mat.fun(x.imp, mu, V.mat), V2.mat, V.mat.o, quant = quant)
 
       
       #apply(x.corr.mat,1,function(u){t(u-colMeans(x.imp)) %*%P.mat.fun(x.imp, mu, V.mat)$P.mat  %*% (u-colMeans(x.imp))  }) > qchisq(p = 0.99,df = p-1)
